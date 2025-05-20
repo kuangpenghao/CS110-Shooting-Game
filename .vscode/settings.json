@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "lcd.h": "c",
-        "example.h": "c"
+        "example.h": "c",
+        "cmath": "c"
     }
 }

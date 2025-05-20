@@ -20,12 +20,11 @@ void IO_init(void) {
 
 void Board_self_test(void) {
   Initial_selection();
-
-  Initial_scene_drawing();
+  Initialization();
+  Play();
 }
 
 int main(void) {
   IO_init();
   Board_self_test();
-  Play();
 }

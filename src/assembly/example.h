@@ -6,5 +6,8 @@
 #define LAB12_STARTER_EXAMPLE_H
 
 void draw_rect();
+void draw_circ();
+void draw_point();
+void draw_pointbig();
 
 #endif //LAB12_STARTER_EXAMPLE_H

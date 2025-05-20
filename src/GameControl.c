@@ -2,14 +2,13 @@
 #include "utils.h"
 #include "assembly/example.h"
 #include "GameControl.h"
+#include <math.h>
 
 struct Player master,enemy[3];
-struct dir_vec dxy[4] = {
-    {-1, 0}, // left
-    {1, 0},   // right
-    {0, -1}, // up
-    {0, 1}  // down    
-};
+
+struct node chain_start,chain_end;
+
+int last_left,last_right,last_up,last_down,last_ctr;
 
 void Initial_selection()
 {
@@ -37,14 +36,14 @@ void Initial_selection()
     // Small delay to prevent CPU hogging
     delay_1ms(5);
   }
-  LCD_ShowString(60, 35, (u8*)"5", WHITE);
+/*  LCD_ShowString(60, 35, (u8*)"5", WHITE);
   delay_1ms(1000);
   LCD_ShowString(60, 35, (u8*)"4", WHITE);
   delay_1ms(1000);
   LCD_ShowString(60, 35, (u8*)"3", WHITE);
   delay_1ms(1000);
   LCD_ShowString(60, 35, (u8*)"2", WHITE);
-  delay_1ms(1000);
+  delay_1ms(1000);*/
   LCD_ShowString(60, 35, (u8*)"1", WHITE);
   delay_1ms(1000);
   LCD_ShowString(60, 35, (u8*)"0", WHITE);
@@ -52,7 +51,7 @@ void Initial_selection()
 
 }
 
-void Initial_scene_drawing()
+void Initialization()
 {
   LCD_Clear(BLACK);
 
@@ -66,6 +65,9 @@ void Initial_scene_drawing()
   draw_rect( enemy[0].x-1,enemy[0].y-2,enemy[0].x+1,enemy[0].y+2,RED);
   draw_rect( enemy[1].x-1,enemy[1].y-2,enemy[1].x+1,enemy[1].y+2,GREEN);
   draw_rect( enemy[2].x-1,enemy[2].y-2,enemy[2].x+1,enemy[2].y+2,BLUE);
+
+  chain_start.next = &chain_end;chain_start.prev = NULL;chain_start.value = NULL;
+  chain_end.prev = &chain_start;chain_end.next = NULL;chain_end.value = NULL;
 }
 
 int collision(int x1, int y1, int x2, int y2)
@@ -117,10 +119,11 @@ void Enemy_move(int loop)
   }
 }
 
-void Master_move()
+void Master_move(int loop)
 {
   if(Get_Button(JOY_LEFT))
   {
+    if(loop-last_left<10)return;
     int old_x = master.x,old_y = master.y;
     int new_x=old_x-1,new_y=old_y;
     if(new_x<=2||new_x>=LCD_W-2||new_y<=4||new_y>=LCD_H-4)
@@ -137,6 +140,7 @@ void Master_move()
   }
   if(Get_Button(JOY_RIGHT))
   {
+    if(loop-last_right<10)return;
     int old_x = master.x,old_y = master.y;
     int new_x=old_x+1,new_y=old_y;
     if(new_x<=2||new_x>=LCD_W-2||new_y<=4||new_y>=LCD_H-4)
@@ -153,6 +157,7 @@ void Master_move()
   }
   if(Get_Button(JOY_UP))
   {
+    if(loop-last_up<10)return;
     int old_x = master.x,old_y = master.y;
     int new_x=old_x,new_y=old_y-1;
     if(new_x<=2||new_x>=LCD_W-2||new_y<=4||new_y>=LCD_H-4)
@@ -169,6 +174,7 @@ void Master_move()
   }
   if(Get_Button(JOY_DOWN))
   {
+    if(loop-last_down<10)return;
     int old_x = master.x,old_y = master.y;
     int new_x=old_x,new_y=old_y+1;
     if(new_x<=2||new_x>=LCD_W-2||new_y<=4||new_y>=LCD_H-4)
@@ -185,17 +191,153 @@ void Master_move()
   }
 }
 
+void Remove_bullet()
+{
+  struct node* node = chain_start.next;
+  while(node!=&chain_end)
+  {
+    struct Bullet* bullet = node->value;
+    if(bullet->valid==0)
+    {
+      if(bullet->owner==1)draw_circ(bullet->x,bullet->y,1,BLACK);
+      if(bullet->owner==2)draw_rect(bullet->x,bullet->y,bullet->x,bullet->y,BLACK);
+      if(bullet->owner==3)draw_point(bullet->x,bullet->y,BLACK);
+      node->prev->next=node->next;
+      node->next->prev=node->prev;
+      struct node* temp = node;
+      node=node->next;
+      free(temp->value);
+      free(temp);
+    }
+    else
+      node=node->next;
+  }
+}
+
+void Generate_bullet(int x,int y,int dx,int dy,char owner)
+{
+  struct Bullet* bullet = (struct Bullet*)malloc(sizeof(struct Bullet));
+
+  struct node* node = (struct node*)malloc(sizeof(struct node));
+  node->value = bullet;
+  node->next = &chain_end;node->prev = chain_end.prev;chain_end.prev->next = node;chain_end.prev = node;
+
+  bullet->dx=dx;bullet->dy=dy;bullet->valid=1;bullet->owner=owner;//bullet->x=x+bullet->dx;bullet->y=y+bullet->dy;
+  bullet->x=x;bullet->y=y;bullet->orix=x;bullet->oriy=y;
+  bullet->tot=0;
+
+  if(bullet->x<=2||bullet->x>=LCD_W-2||bullet->y<=4||bullet->y>=LCD_H-4)
+  {
+    free(bullet);
+    free(node);
+    return;
+  }
+
+  if(owner==1)
+    draw_circ(bullet->x,bullet->y,1,RED);
+  if(owner==2)
+    draw_rect(bullet->x,bullet->y,bullet->x,bullet->y,GREEN);
+  if(owner==3)
+    draw_point(bullet->x,bullet->y,BLUE);
+}
+
+void Enemy_shoot(int loop)
+{
+  // Enemy1 shoot
+  if(enemy[0].life>0&&(loop%30==0))
+  {
+    int dx,dy;
+    int delta_x = master.x - enemy[0].x,delta_y = master.y - enemy[0].y;
+    if (abs(delta_x) > abs(delta_y)){dx=((delta_x > 0) ? 1 : -1);dy=0;}
+    else {dx=0;dy=((delta_y > 0) ? 1 : -1);}
+    
+    Generate_bullet(enemy[0].x,enemy[0].y,dx,dy,1);
+  }
+  // Enemy2 shoot
+  if(enemy[1].life&&loop%45==0)
+  {
+    int bias=-10;
+    for(;bias<=10;bias+=4)
+    {
+      int dx,dy,bulx,buly;
+      int delta_x=master.x-enemy[1].x,delta_y=master.y-enemy[1].y;
+      if (abs(delta_x) > abs(delta_y)){dx=((delta_x > 0) ? 1 : -1);dy=0;}
+      else {dx=0;dy=((delta_y > 0) ? 1 : -1);}
+      if (abs(delta_x) > abs(delta_y))
+        {bulx=enemy[1].x+dx;buly=enemy[1].y+dy+bias;}
+      else
+        {bulx=enemy[1].x+dx+bias;buly=enemy[1].y+dy;}
+
+      Generate_bullet(bulx,buly,dx,dy,2);
+    }
+  }
+  // Enemy3 shoot
+  if(enemy[2].life&&loop%35==0)
+  {
+    Generate_bullet(enemy[2].x,enemy[2].y,1,0,3);
+    Generate_bullet(enemy[2].x,enemy[2].y,0,1,3);
+    Generate_bullet(enemy[2].x,enemy[2].y,-1,0,3);
+    Generate_bullet(enemy[2].x,enemy[2].y,0,-1,3);
+    Generate_bullet(enemy[2].x,enemy[2].y,7,12,3);
+    Generate_bullet(enemy[2].x,enemy[2].y,12,7,3);
+    Generate_bullet(enemy[2].x,enemy[2].y,-7,12,3);
+    Generate_bullet(enemy[2].x,enemy[2].y,12,-7,3);
+    Generate_bullet(enemy[2].x,enemy[2].y,-12,7,3);
+    Generate_bullet(enemy[2].x,enemy[2].y,-12,-7,3);
+    Generate_bullet(enemy[2].x,enemy[2].y,-7,-12,3);
+    Generate_bullet(enemy[2].x,enemy[2].y,7,-12,3);
+  }
+}
+
+void Bullet_move(int loop)
+{
+  if(loop%1)return;
+  struct node* node=chain_start.next;
+  while(node!=&chain_end)
+  {
+    struct Bullet* bullet=node->value;
+    int old_x=bullet->x,old_y=bullet->y;
+    if(bullet->owner==1)draw_circ(old_x,old_y,1,BLACK);
+    if(bullet->owner==2)draw_rect(old_x,old_y,old_x,old_y,BLACK);
+    if(bullet->owner==3)draw_point(old_x,old_y,BLACK);
+
+    if(bullet->owner==1||bullet->owner==2)
+    {
+      bullet->x+=bullet->dx;
+      bullet->y+=bullet->dy;      
+    }
+    if(bullet->owner==3)
+    {
+      bullet->tot++;
+      double tempx,tempy;
+      tempx=(double)bullet->orix+(bullet->tot*bullet->dx)/sqrt(bullet->dx*bullet->dx+bullet->dy*bullet->dy)*((bullet->x)/abs(bullet->x));
+      tempy=(double)bullet->oriy+(bullet->tot*bullet->dy)/sqrt(bullet->dx*bullet->dx+bullet->dy*bullet->dy)*((bullet->y)/abs(bullet->y));
+      bullet->x=tempx;
+      bullet->y=tempy;
+    }
+
+    if(abs(bullet->x-master.x)<=2&&abs(bullet->y-master.y)<=4)bullet->valid=0;
+
+    if(bullet->x<=2||bullet->x>=LCD_W-2||bullet->y<=4||bullet->y>=LCD_H-4)bullet->valid=0;
+
+    if(bullet->valid&&bullet->owner==1)draw_circ(bullet->x,bullet->y,1,RED);
+    if(bullet->valid&&bullet->owner==2)draw_rect(bullet->x,bullet->y,bullet->x,bullet->y,GREEN);
+    if(bullet->valid&&bullet->owner==3)draw_point(bullet->x,bullet->y,BLUE);
+    
+    node=node->next;
+  }
+}
+
 void Play()
 {
   int loop=0;
   while(loop++<=12000)
   {
     Enemy_move(loop);
-    
-    Master_move();
+    Enemy_shoot(loop);
+    Bullet_move(loop);
+    Remove_bullet();
+    Master_move(loop);
     delay_1ms(5);
   }
 }
-
-
-
