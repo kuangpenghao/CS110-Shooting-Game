@@ -27,4 +27,5 @@ void Board_self_test(void) {
 int main(void) {
   IO_init();
   Board_self_test();
+  Play();
 }
