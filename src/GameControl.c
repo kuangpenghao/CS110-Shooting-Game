@@ -3,50 +3,60 @@
 #include "assembly/example.h"
 #include "GameControl.h"
 #include <math.h>
+#include <time.h>
+//#include "../include/gd32vf103_libopt.h"
+#include "gd32vf103.h"
 
+uint64_t get_time_ms() {
+  return get_timer_value() / (SystemCoreClock / 4000);
+}
 struct Player master,enemy[3];
-
 struct node chain_start,chain_end;
-
-int last_left,last_right,last_up,last_down,last_ctr,last_button1,last_button2;
+short bullet_count=0,FPS;
+int last_button1,last_button2;
+u8 *scene[] = {(u8*)"left:scene1", (u8*)"down:scene2", (u8*)"right:scene3"};
+int sceney[]={25,40,55};
 
 void Initial_selection()
 {
   LCD_Clear(BLACK);
-    LCD_ShowString(40,25,(u8*)"left:scene1",WHITE);
-    LCD_ShowString(40,40,(u8*)"down:scene2",WHITE);
-    LCD_ShowString(40,55,(u8*)"right:scene3",WHITE);  
+
+  show_initial_string(40,0,NULL,WHITE);
+
   while(1)
   {
-    if(Get_Button(JOY_LEFT)) {
+    int flag=choose_button(Get_Button(JOY_LEFT),Get_Button(JOY_DOWN),Get_Button(JOY_RIGHT));
+    if(flag==1) {
       LCD_Clear(BLACK);
       LCD_ShowString(60,15,(u8*)"scene1",WHITE);
       break;
     }
-    if(Get_Button(JOY_DOWN)) {
+    if(flag==2) {
       LCD_Clear(BLACK);
       LCD_ShowString(60,15,(u8*)"scene2",WHITE);
       break;
     }
-    if(Get_Button(JOY_RIGHT)) {
+    if(flag==3) {
       LCD_Clear(BLACK);
       LCD_ShowString(60,15,(u8*)"scene3",WHITE);
       break;
     }
+    
+
     // Small delay to prevent CPU hogging
     delay_1ms(5);
   }
-  /*LCD_ShowString(60, 35, (u8*)"5", WHITE);
+  LCD_ShowString(60, 35, (u8*)"5", WHITE);
   delay_1ms(1000);
   LCD_ShowString(60, 35, (u8*)"4", WHITE);
-  delay_1ms(1000);*/
+  delay_1ms(1000);
   LCD_ShowString(60, 35, (u8*)"3", WHITE);
   delay_1ms(1000);
   LCD_ShowString(60, 35, (u8*)"2", WHITE);
   delay_1ms(1000);
   LCD_ShowString(60, 35, (u8*)"1", WHITE);
   delay_1ms(1000);
-  LCD_ShowString(60, 35, (u8*)"0", WHITE);
+  LCD_ShowString(60, 35, (u8*)"0", WHITE);/**/
   LCD_Clear(BLACK);
 
 }
@@ -148,7 +158,6 @@ void Master_move(int loop)
 {
   if(Get_Button(JOY_LEFT))
   {
-    if(loop-last_left<10)return;
     int old_x = master.x,old_y = master.y;
     int new_x=old_x-1,new_y=old_y;
     if(new_x<=2||new_x>=LCD_W-2||new_y<=4||new_y>=LCD_H-4)
@@ -165,7 +174,6 @@ void Master_move(int loop)
   }
   if(Get_Button(JOY_RIGHT))
   {
-    if(loop-last_right<10)return;
     int old_x = master.x,old_y = master.y;
     int new_x=old_x+1,new_y=old_y;
     if(new_x<=2||new_x>=LCD_W-2||new_y<=4||new_y>=LCD_H-4)
@@ -182,7 +190,6 @@ void Master_move(int loop)
   }
   if(Get_Button(JOY_UP))
   {
-    if(loop-last_up<10)return;
     int old_x = master.x,old_y = master.y;
     int new_x=old_x,new_y=old_y-1;
     if(new_x<=2||new_x>=LCD_W-2||new_y<=4||new_y>=LCD_H-4)
@@ -199,7 +206,6 @@ void Master_move(int loop)
   }
   if(Get_Button(JOY_DOWN))
   {
-    if(loop-last_down<10)return;
     int old_x = master.x,old_y = master.y;
     int new_x=old_x,new_y=old_y+1;
     if(new_x<=2||new_x>=LCD_W-2||new_y<=4||new_y>=LCD_H-4)
@@ -235,6 +241,7 @@ void Remove_bullet()
       node=node->next;
       free(temp->value);
       free(temp);
+      bullet_count--;
     }
     else
       node=node->next;
@@ -262,7 +269,8 @@ void Generate_bullet(int x,int y,int dx,int dy,char owner,char target)
     draw_pointbig(bullet->x,bullet->y,BLUE);
   if(owner==4||owner==0)
     draw_point(bullet->x,bullet->y,WHITE);
-    
+
+  bullet_count++;
 }
 
 void Enemy_shoot(int loop)
@@ -270,12 +278,10 @@ void Enemy_shoot(int loop)
   // Enemy1 shoot
   if(enemy[0].life>0&&(loop%30==0))
   {
-    int dx,dy;
-    int delta_x = master.x - enemy[0].x,delta_y = master.y - enemy[0].y;
-    if (abs(delta_x) > abs(delta_y)){dx=((delta_x > 0) ? 1 : -1);dy=0;}
-    else {dx=0;dy=((delta_y > 0) ? 1 : -1);}
-    
-    Generate_bullet(enemy[0].x,enemy[0].y,dx,dy,1,0);
+    Generate_bullet(enemy[0].x,enemy[0].y,0,1,1,0);
+    Generate_bullet(enemy[0].x,enemy[0].y,0,-1,1,0);
+    Generate_bullet(enemy[0].x,enemy[0].y,1,0,1,0);
+    Generate_bullet(enemy[0].x,enemy[0].y,-1,0,1,0);
   }
   // Enemy2 shoot
   if(enemy[1].life&&loop%45==0)
@@ -315,10 +321,10 @@ void Enemy_shoot(int loop)
 
 void Master_shoot(int loop)
 {
-  if(Get_Button(BUTTON_1))
+  int ms=get_time_ms();
+  if(Get_Button(BUTTON_1)&&(ms-last_button1)>=300)
   {
-    if(loop-last_button1<10)return;
-    
+    last_button1=ms;
     Generate_bullet(master.x,master.y,0,-1,4,0);
     Generate_bullet(master.x,master.y,1,0,4,0);
     Generate_bullet(master.x,master.y,0,1,4,0);
@@ -331,18 +337,21 @@ void Master_shoot(int loop)
     Generate_bullet(master.x,master.y,-12,-7,4,0);
     Generate_bullet(master.x,master.y,-7,-12,4,0);
     Generate_bullet(master.x,master.y,7,-12,4,0);
-
-    last_button1=loop;
   }
-  if(Get_Button(BUTTON_2))
+  if(Get_Button(BUTTON_2)&&(ms-last_button2)>=300)
   {
-    if(loop-last_button2<10)return;
+    last_button2=ms;
     int deltax,deltay,target;
     target=loop%3;
-    deltax=enemy[target].x-master.x;
-    deltay=enemy[target].y-master.y;
-    Generate_bullet(master.x,master.y,deltax,deltay,0,target+1);
-    last_button2=loop;
+    int tempdx[]={0,3,-3,0,0},tempdy[]={0,0,0,3,-3};
+    for(int i=0;i<5;i++)
+    {
+      deltax=enemy[target].x-master.x;
+      deltay=enemy[target].y-master.y;
+      Generate_bullet(master.x+tempdx[i],master.y+tempdy[i],deltax,deltay,0,target+1);
+      target++;target%=3;
+    }
+
   }
 }
 
@@ -361,10 +370,29 @@ void Bullet_move(int loop)
 
     if((bullet->owner==4||bullet->owner==0)&&collision(master.x,master.y,bullet->x,bullet->y))draw_rect(master.x-1,master.y-2,master.x+1,master.y+2,WHITE);
 
-    if(bullet->owner==1||bullet->owner==2)
+    if(bullet->owner==1)
     {
+      bullet->tot++;
+      if(bullet->tot==60)bullet->valid=0;
+      if(bullet->tot==30)
+      {
+        if(bullet->dx==1){bullet->dx=0;bullet->dy=1;}
+        else if(bullet->dy==1){bullet->dx=-1;bullet->dy=0;}
+        else if(bullet->dx==-1){bullet->dx=0;bullet->dy=-1;}
+        else{bullet->dx=1;bullet->dy=0;}
+      }
+      if(bullet->valid)
+      {
+        bullet->x+=bullet->dx;
+        bullet->y+=bullet->dy;        
+      }
+    }
+    if(bullet->owner==2)
+    {
+      bullet->tot++;
       bullet->x+=bullet->dx;
       bullet->y+=bullet->dy;
+      //if(bullet->tot>=60)bullet->valid=0;
     }
     if(bullet->owner==3||bullet->owner==4)
     {
@@ -435,9 +463,17 @@ void Bullet_move(int loop)
 
 void Play()
 {
-  int loop=0;
-  while(loop++<=998244353)
+  int loop=0,last_loop=0;
+  int last_ms=0;
+  while(loop<=998244353)
   {
+    int ms=get_time_ms();
+    if(ms-last_ms>250)
+    {
+      FPS=(loop-last_loop)*1000/(ms-last_ms);
+      last_ms=ms;last_loop=loop;
+    }
+
     Enemy_update();
     Enemy_move(loop);
     Master_move(loop);
@@ -447,7 +483,14 @@ void Play()
 
     Bullet_move(loop);
     Remove_bullet();
-    
+
+    LCD_ShowNum(5,60,bullet_count,3,YELLOW);
+    LCD_ShowNum(120,60,FPS,3,YELLOW);
+    LCD_ShowNum(5,8,ms/1000,3,YELLOW);
+    //LCD_ShowNum(110,8,loop,4,YELLOW);
+
+    loop++;
+
     delay_1ms(5);
   }
 }

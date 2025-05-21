@@ -2,6 +2,8 @@
     "files.associations": {
         "lcd.h": "c",
         "example.h": "c",
-        "cmath": "c"
+        "cmath": "c",
+        "gd32vf103_libopt.h": "c",
+        "gd32vf103.h": "c"
     }
 }
