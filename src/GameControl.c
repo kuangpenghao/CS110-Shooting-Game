@@ -15,13 +15,15 @@ struct node chain_start,chain_end;
 short bullet_count=0,FPS;
 int last_button1,last_button2;
 u8 *scene[] = {(u8*)"left:scene1", (u8*)"down:scene2", (u8*)"right:scene3"};
-int sceney[]={25,40,55};
+int sceney[]={10,25,40};
+int init_string_success=0;
 
 void Initial_selection()
 {
   LCD_Clear(BLACK);
 
   show_initial_string(40,0,NULL,WHITE);
+  if(init_string_success)LCD_ShowString(40,60,(u8*)"Select scene!",BRED);
 
   while(1)
   {
@@ -41,9 +43,6 @@ void Initial_selection()
       LCD_ShowString(60,15,(u8*)"scene3",WHITE);
       break;
     }
-    
-
-    // Small delay to prevent CPU hogging
     delay_1ms(5);
   }
   LCD_ShowString(60, 35, (u8*)"5", WHITE);
@@ -276,7 +275,7 @@ void Generate_bullet(int x,int y,int dx,int dy,char owner,char target)
 void Enemy_shoot(int loop)
 {
   // Enemy1 shoot
-  if(enemy[0].life>0&&(loop%30==0))
+  if(enemy[0].life>0&&(loop%10==0))
   {
     Generate_bullet(enemy[0].x,enemy[0].y,0,1,1,0);
     Generate_bullet(enemy[0].x,enemy[0].y,0,-1,1,0);
@@ -284,7 +283,7 @@ void Enemy_shoot(int loop)
     Generate_bullet(enemy[0].x,enemy[0].y,-1,0,1,0);
   }
   // Enemy2 shoot
-  if(enemy[1].life&&loop%45==0)
+  if(enemy[1].life&&loop%20==0)
   {
     int bias=-10;
     for(;bias<=10;bias+=4)
@@ -302,7 +301,7 @@ void Enemy_shoot(int loop)
     }
   }
   // Enemy3 shoot
-  if(enemy[2].life&&loop%35==0)
+  if(enemy[2].life&&loop%40==0)
   {
     Generate_bullet(enemy[2].x,enemy[2].y,1,0,3,0);
     Generate_bullet(enemy[2].x,enemy[2].y,0,1,3,0);
@@ -351,13 +350,11 @@ void Master_shoot(int loop)
       Generate_bullet(master.x+tempdx[i],master.y+tempdy[i],deltax,deltay,0,target+1);
       target++;target%=3;
     }
-
   }
 }
 
 void Bullet_move(int loop)
 {
-  if(loop%1)return;
   struct node* node=chain_start.next;
   while(node!=&chain_end)
   {
@@ -369,6 +366,9 @@ void Bullet_move(int loop)
     if(bullet->owner==4||bullet->owner==0)draw_point(old_x,old_y,BLACK);
 
     if((bullet->owner==4||bullet->owner==0)&&collision(master.x,master.y,bullet->x,bullet->y))draw_rect(master.x-1,master.y-2,master.x+1,master.y+2,WHITE);
+    if((bullet->owner==1)&&collision(enemy[0].x,enemy[0].y,bullet->x,bullet->y))draw_rect(enemy[0].x-1,enemy[0].y-2,enemy[0].x+1,enemy[0].y+2,RED);
+    if((bullet->owner==2)&&collision(enemy[1].x,enemy[1].y,bullet->x,bullet->y))draw_rect(enemy[1].x-1,enemy[1].y-2,enemy[1].x+1,enemy[1].y+2,GREEN);
+    if((bullet->owner==3)&&collision(enemy[2].x,enemy[2].y,bullet->x,bullet->y))draw_rect(enemy[2].x-1,enemy[2].y-2,enemy[2].x+1,enemy[2].y+2,RED);
 
     if(bullet->owner==1)
     {
@@ -468,7 +468,7 @@ void Play()
   while(loop<=998244353)
   {
     int ms=get_time_ms();
-    if(ms-last_ms>250)
+    if(ms-last_ms>150)
     {
       FPS=(loop-last_loop)*1000/(ms-last_ms);
       last_ms=ms;last_loop=loop;
@@ -490,7 +490,5 @@ void Play()
     //LCD_ShowNum(110,8,loop,4,YELLOW);
 
     loop++;
-
-    delay_1ms(5);
   }
 }

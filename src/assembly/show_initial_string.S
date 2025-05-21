@@ -74,6 +74,11 @@ show_initial_string:
     lw a3, 20(sp)
     addi sp, sp, 24
 
+    # Load the address of init_string_success and modify it to 1
+    la t0, init_string_success
+    li t1, 1
+    sw t1, 0(t0)
+
 	# Restore return address
 	lw ra, 0(sp)
 	addi sp, sp, 4
