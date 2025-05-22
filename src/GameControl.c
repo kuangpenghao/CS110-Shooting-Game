@@ -57,13 +57,12 @@ void Initial_selection()
   delay_1ms(1000);
   LCD_ShowString(60, 35, (u8*)"0", WHITE);/**/
   LCD_Clear(BLACK);
+  draw_rect(0,0,LCD_W-1,LCD_H-1,GBLUE);
 
 }
 
 void Initialization()
 {
-  LCD_Clear(BLACK);
-
   master.x=20;master.y=40;master.life=2100000000;master.name=0;
 
   enemy[0].x=120;enemy[0].y=10;enemy[0].life=10;enemy[0].name=1;
@@ -249,10 +248,11 @@ void Remove_bullet()
 
 void Generate_bullet(int x,int y,int dx,int dy,char owner,char target)
 {
+  if(x<=2||x>=LCD_W-2||y<=4||y>=LCD_H-4)
+    return;
+
   struct Bullet* bullet = (struct Bullet*)malloc(sizeof(struct Bullet));
-
   struct node* node = (struct node*)malloc(sizeof(struct node));
-
   node->value = bullet;
   node->next = &chain_end;node->prev = chain_end.prev;chain_end.prev->next = node;chain_end.prev = node;
 
@@ -283,7 +283,7 @@ void Enemy_shoot(int loop)
     Generate_bullet(enemy[0].x,enemy[0].y,-1,0,1,0);
   }
   // Enemy2 shoot
-  if(enemy[1].life&&loop%20==0)
+  if(enemy[1].life&&loop%10==0)
   {
     int bias=-10;
     for(;bias<=10;bias+=4)
@@ -355,6 +355,7 @@ void Master_shoot(int loop)
 
 void Bullet_move(int loop)
 {
+  if(loop%2)return;
   struct node* node=chain_start.next;
   while(node!=&chain_end)
   {
@@ -450,7 +451,7 @@ void Bullet_move(int loop)
           bullet->valid=0;
         }
 
-    if(bullet->x<=2||bullet->x>=LCD_W-2||bullet->y<=4||bullet->y>=LCD_H-4)bullet->valid=0;
+    if(bullet->x<=2||bullet->x>=LCD_W-3||bullet->y<=4||bullet->y>=LCD_H-4)bullet->valid=0;
 
     if(bullet->valid&&bullet->owner==1)draw_circ(bullet->x,bullet->y,1,RED);
     if(bullet->valid&&bullet->owner==2)draw_rect(bullet->x,bullet->y,bullet->x,bullet->y,GREEN);
